@@ -2,7 +2,7 @@ namespace ToDoMaui_Listview;
 
 public partial class SignUpPage : ContentPage
 {
-    private DatabaseHelper _dbHelper = new DatabaseHelper();
+    private ApiService _apiService = new ApiService();
 
     public SignUpPage()
     {
@@ -13,48 +13,36 @@ public partial class SignUpPage : ContentPage
     {
         try
         {
-            // preevents null/empty crashes
-            if (string.IsNullOrWhiteSpace(userEntry.Text) ||
-                string.IsNullOrWhiteSpace(emailEntry.Text) ||
-                string.IsNullOrWhiteSpace(passEntry.Text))
+            if (string.IsNullOrWhiteSpace(fNameEntry.Text) || string.IsNullOrWhiteSpace(lNameEntry.Text) ||
+                string.IsNullOrWhiteSpace(emailEntry.Text) || string.IsNullOrWhiteSpace(passEntry.Text))
             {
-                await DisplayAlert("Wait", "Please fill out all fields before signing up.", "OK");
+                await DisplayAlert("Wait", "Please fill out all fields.", "OK");
                 return;
             }
 
-            // check if passwords match
             if (passEntry.Text != confirmPassEntry.Text)
             {
                 await DisplayAlert("Error", "Passwords do not match.", "OK");
                 return;
             }
 
-            var newUser = new UserClass
-            {
-                username = userEntry.Text,
-                email = emailEntry.Text,
-                password = passEntry.Text
-            };
+            // Call the Live API!
+            var response = await _apiService.SignUpAsync(fNameEntry.Text, lNameEntry.Text, emailEntry.Text, passEntry.Text, confirmPassEntry.Text);
 
-            // attempt to save to the database
-            bool success = await _dbHelper.RegisterUser(newUser);
-
-            //if everything looks good, it packages that data into a UserClass object and hands it to the DatabaseHelper to save.
-            //If the email is already taken, the database rejects it, and the page shows an error alert.
-            if (success)
+            // API Docs state success status is 200
+            if (response != null && response.status == 200)
             {
-                await DisplayAlert("Success!", "Account created safely.", "OK");
-                await Navigation.PopAsync(); // Send back to login
+                await DisplayAlert("Success!", response.message, "OK");
+                await Navigation.PopAsync(); // Go back to login
             }
             else
             {
-                await DisplayAlert("Error", "An account with that email already exists.", "OK");
+                await DisplayAlert("Error", response?.message ?? "Failed to create account.", "OK");
             }
         }
         catch (Exception ex)
         {
-            // if SQLite throws an error, it will show up here instead of closing the app!
-            await DisplayAlert("System Error", $"Something went wrong: {ex.Message}", "OK");
+            await DisplayAlert("Connection Error", $"Could not connect to server: {ex.Message}", "OK");
         }
     }
 

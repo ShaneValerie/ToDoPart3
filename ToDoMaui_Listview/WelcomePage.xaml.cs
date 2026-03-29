@@ -1,39 +1,44 @@
-using Javax.Annotation.Meta;
-using static Android.Provider.ContactsContract.CommonDataKinds;
-
 namespace ToDoMaui_Listview;
 
 public partial class WelcomePage : ContentPage
 {
-    private DatabaseHelper _dbHelper = new DatabaseHelper();
+    private ApiService _apiService = new ApiService();
 
     public WelcomePage()
     {
         InitializeComponent();
     }
 
-    //When the user clicks "Login", it sends the email and password to the database.
-    //If the database gives the thumbs-up, it takes the logged-in user's user_id and passes it into the MainTabbedPage. 
     private async void OnLoginClicked(object sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(emailEntry.Text) || string.IsNullOrWhiteSpace(passwordEntry.Text)) return;
-
-        var user = await _dbHelper.AuthenticateUser(emailEntry.Text, passwordEntry.Text);
-
-        if (user != null)
+        try
         {
-            passwordEntry.Text = string.Empty;
-            // Send user to the Tabbed App layout
-            Application.Current.MainPage = new MainTabbedPage(user.user_id, user.username);
-        }
-        else
-        {
-            // The Logic you requested: Check if it's a wrong password, or if the account doesn't exist at all
-            bool emailExists = await _dbHelper.CheckEmailExists(emailEntry.Text);
-            if (!emailExists)
-                await DisplayAlert("Notice", "No account created yet. Please sign up.", "OK");
+            if (string.IsNullOrWhiteSpace(emailEntry.Text) || string.IsNullOrWhiteSpace(passwordEntry.Text))
+            {
+                await DisplayAlert("Wait", "Please enter email and password.", "OK");
+                return;
+            }
+
+            // Call the Live API!
+            var response = await _apiService.SignInAsync(emailEntry.Text, passwordEntry.Text);
+
+            // API Docs state success status is 200
+            if (response != null && response.status == 200)
+            {
+                passwordEntry.Text = string.Empty;
+
+                // Pass the LIVE User ID and their first name into the app
+                Application.Current.MainPage = new MainTabbedPage(response.data.id, response.data.fname);
+            }
             else
-                await DisplayAlert("Error", "Incorrect password.", "OK");
+            {
+                // API Docs state error status is 400
+                await DisplayAlert("Error", response?.message ?? "Invalid credentials.", "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Connection Error", $"Could not connect to server: {ex.Message}", "OK");
         }
     }
 

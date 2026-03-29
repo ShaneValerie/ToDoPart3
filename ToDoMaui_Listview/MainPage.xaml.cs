@@ -53,8 +53,8 @@ public partial class MainPage : ContentPage
         if (sender is Button btn && btn.CommandParameter is ToDoClass item)
         {
             _selectedToDo = item;
-            nameEntry.Text = item.item_name;         // Updated
-            descEntry.Text = item.item_description;  // Updated
+            nameEntry.Text = item.item_name; //updated 
+            descEntry.Text = item.item_description; //updated
 
             addBtn.IsVisible = false;
             editBtn.IsVisible = true;
@@ -66,8 +66,8 @@ public partial class MainPage : ContentPage
     {
         if (_selectedToDo != null)
         {
-            _selectedToDo.item_name = nameEntry.Text;         // Updated
-            _selectedToDo.item_description = descEntry.Text;  // Updated
+            _selectedToDo.item_name = nameEntry.Text;
+            _selectedToDo.item_description = descEntry.Text;
             await _dbHelper.SaveToDo(_selectedToDo);
             CancelEdit(null, null);
         }

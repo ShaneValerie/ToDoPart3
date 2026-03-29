@@ -9,7 +9,11 @@
         <Label Text="Create Account" FontSize="32" FontAttributes="Bold" TextColor="#D5E6A3" HorizontalOptions="Center" Margin="0,0,0,20"/>
 
         <Border BackgroundColor="White" StrokeShape="RoundRectangle 25" StrokeThickness="0" Padding="15,5">
-            <Entry x:Name="userEntry" Placeholder="Username" TextColor="Black" PlaceholderColor="#A0A0A0"/>
+            <Entry x:Name="fNameEntry" Placeholder="First Name" TextColor="Black" PlaceholderColor="#A0A0A0"/>
+        </Border>
+
+        <Border BackgroundColor="White" StrokeShape="RoundRectangle 25" StrokeThickness="0" Padding="15,5">
+            <Entry x:Name="lNameEntry" Placeholder="Last Name" TextColor="Black" PlaceholderColor="#A0A0A0"/>
         </Border>
 
         <Border BackgroundColor="White" StrokeShape="RoundRectangle 25" StrokeThickness="0" Padding="15,5">
