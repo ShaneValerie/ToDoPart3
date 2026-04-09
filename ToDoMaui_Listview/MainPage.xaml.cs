@@ -4,9 +4,8 @@ namespace ToDoMaui_Listview;
 
 public partial class MainPage : ContentPage
 {
-    private DatabaseHelper _dbHelper = new DatabaseHelper();
-    public ObservableCollection<ToDoClass> ToDos { get; set; } = new ObservableCollection<ToDoClass>(); //an ObservableCollection is a special type of list that automatically updates the screen.
-                                                                                                        //When you say ToDos.Add(newTask) or ToDos.Remove(task), the XAML sees it happen and instantly redraws the UI 
+    private ApiService _api = new ApiService();
+    public ObservableCollection<ToDoClass> ToDos { get; set; } = new ObservableCollection<ToDoClass>();
     private ToDoClass? _selectedToDo;
     private int _currentUserId;
 
@@ -17,14 +16,12 @@ public partial class MainPage : ContentPage
         todoLV.ItemsSource = ToDos;
     }
 
-    //for this method, evry single time the user clicks on a tab, this method fires.
-    //It clears out the old list on the screen, asks the database for a fresh list of tasks, and repopulates the screen.
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        var tasksFromDb = await _dbHelper.GetTasksByStatus(_currentUserId, "Pending");
+        var items = await _api.GetItemsAsync(_currentUserId, "active");
         ToDos.Clear();
-        foreach (var task in tasksFromDb) ToDos.Add(task);
+        foreach (var item in items) ToDos.Add(item);
     }
 
     private async void AddToDoItem(object? sender, EventArgs e)
@@ -35,17 +32,20 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        var newTask = new ToDoClass
-        {
-            item_name = nameEntry.Text,          // Updated to match your ToDoClass
-            item_description = descEntry.Text,   // Updated to match your ToDoClass
-            status = "Pending",
-            user_id = _currentUserId
-        };
+        bool success = await _api.AddItemAsync(nameEntry.Text, descEntry.Text, _currentUserId);
 
-        await _dbHelper.SaveToDo(newTask);
-        ToDos.Add(newTask);
-        ClearInputs();
+        if (success)
+        {
+            // Refresh list from API so we get the real item_id back
+            var items = await _api.GetItemsAsync(_currentUserId, "active");
+            ToDos.Clear();
+            foreach (var item in items) ToDos.Add(item);
+            ClearInputs();
+        }
+        else
+        {
+            await DisplayAlert("Error", "Failed to add task. Please try again.", "OK");
+        }
     }
 
     private void TriggerEditMode(object sender, EventArgs e)
@@ -53,8 +53,8 @@ public partial class MainPage : ContentPage
         if (sender is Button btn && btn.CommandParameter is ToDoClass item)
         {
             _selectedToDo = item;
-            nameEntry.Text = item.item_name; //updated 
-            descEntry.Text = item.item_description; //updated
+            nameEntry.Text = item.item_name;
+            descEntry.Text = item.item_description;
 
             addBtn.IsVisible = false;
             editBtn.IsVisible = true;
@@ -66,9 +66,18 @@ public partial class MainPage : ContentPage
     {
         if (_selectedToDo != null)
         {
-            _selectedToDo.item_name = nameEntry.Text;
-            _selectedToDo.item_description = descEntry.Text;
-            await _dbHelper.SaveToDo(_selectedToDo);
+            bool success = await _api.UpdateItemAsync(_selectedToDo.item_id, nameEntry.Text, descEntry.Text);
+
+            if (success)
+            {
+                _selectedToDo.item_name = nameEntry.Text;
+                _selectedToDo.item_description = descEntry.Text;
+            }
+            else
+            {
+                await DisplayAlert("Error", "Failed to update task. Please try again.", "OK");
+            }
+
             CancelEdit(null, null);
         }
     }
@@ -85,24 +94,39 @@ public partial class MainPage : ContentPage
     {
         if (sender is Button btn && btn.CommandParameter is ToDoClass itemToDelete)
         {
-            await _dbHelper.DeleteToDo(itemToDelete);
-            ToDos.Remove(itemToDelete);
+            bool success = await _api.DeleteItemAsync(itemToDelete.item_id);
 
-            if (_selectedToDo == itemToDelete) CancelEdit(null, null);
+            if (success)
+            {
+                ToDos.Remove(itemToDelete);
+                if (_selectedToDo == itemToDelete) CancelEdit(null, null);
+            }
+            else
+            {
+                await DisplayAlert("Error", "Failed to delete task. Please try again.", "OK");
+            }
         }
     }
 
-    // This is the method that fires when the user checks the box to mark a task as completed. It updates the status in the database, and then removes it from this list (since this list only shows pending tasks).
+    // Checking the box = mark as inactive (done) via API
     private async void OnTaskCheckedChanged(object sender, CheckedChangedEventArgs e)
     {
         if (sender is CheckBox cb && cb.BindingContext is ToDoClass task)
         {
-            // We only check if the box is checked (e.Value is true)
             if (e.Value)
             {
-                task.status = "Completed"; // changes the task.status from "Pending" to "Completed"
-                await _dbHelper.SaveToDo(task); // Save to database
-                ToDos.Remove(task); // Remove it from this tab
+                bool success = await _api.ChangeStatusAsync(task.item_id, "inactive");
+
+                if (success)
+                {
+                    ToDos.Remove(task);
+                }
+                else
+                {
+                    // Revert the checkbox visually
+                    task.status = "active";
+                    await DisplayAlert("Error", "Failed to update task status.", "OK");
+                }
             }
         }
     }

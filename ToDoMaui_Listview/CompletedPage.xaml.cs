@@ -4,7 +4,7 @@ namespace ToDoMaui_Listview;
 
 public partial class CompletedPage : ContentPage
 {
-    private DatabaseHelper _dbHelper = new DatabaseHelper();
+    private ApiService _api = new ApiService();
     public ObservableCollection<ToDoClass> CompletedToDos { get; set; } = new ObservableCollection<ToDoClass>();
     private ToDoClass? _selectedToDo;
     private int _currentUserId;
@@ -16,16 +16,12 @@ public partial class CompletedPage : ContentPage
         completedLV.ItemsSource = CompletedToDos;
     }
 
-    // Refreshes the list every time the user clicks on the "Completed" tab
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        var tasksFromDb = await _dbHelper.GetTasksByStatus(_currentUserId, "Completed");
+        var items = await _api.GetItemsAsync(_currentUserId, "inactive");
         CompletedToDos.Clear();
-        foreach (var task in tasksFromDb)
-        {
-            CompletedToDos.Add(task);
-        }
+        foreach (var item in items) CompletedToDos.Add(item);
     }
 
     private void TriggerEditMode(object sender, EventArgs e)
@@ -36,7 +32,7 @@ public partial class CompletedPage : ContentPage
             nameEntry.Text = item.item_name;
             descEntry.Text = item.item_description;
 
-            editPanel.IsVisible = true; // Show the hidden input area
+            editPanel.IsVisible = true;
         }
     }
 
@@ -44,10 +40,18 @@ public partial class CompletedPage : ContentPage
     {
         if (_selectedToDo != null)
         {
-            _selectedToDo.item_name = nameEntry.Text;
-            _selectedToDo.item_description = descEntry.Text;
+            bool success = await _api.UpdateItemAsync(_selectedToDo.item_id, nameEntry.Text, descEntry.Text);
 
-            await _dbHelper.SaveToDo(_selectedToDo); // Save to Database
+            if (success)
+            {
+                _selectedToDo.item_name = nameEntry.Text;
+                _selectedToDo.item_description = descEntry.Text;
+            }
+            else
+            {
+                await DisplayAlert("Error", "Failed to update task. Please try again.", "OK");
+            }
+
             CancelEdit(null, null);
         }
     }
@@ -57,31 +61,46 @@ public partial class CompletedPage : ContentPage
         nameEntry.Text = string.Empty;
         descEntry.Text = string.Empty;
         _selectedToDo = null;
-        editPanel.IsVisible = false; // Hide the input area again
+        editPanel.IsVisible = false;
     }
 
     private async void DeleteToDoItem(object sender, EventArgs e)
     {
         if (sender is Button btn && btn.CommandParameter is ToDoClass itemToDelete)
         {
-            await _dbHelper.DeleteToDo(itemToDelete);
-            CompletedToDos.Remove(itemToDelete);
+            bool success = await _api.DeleteItemAsync(itemToDelete.item_id);
 
-            if (_selectedToDo == itemToDelete) CancelEdit(null, null);
+            if (success)
+            {
+                CompletedToDos.Remove(itemToDelete);
+                if (_selectedToDo == itemToDelete) CancelEdit(null, null);
+            }
+            else
+            {
+                await DisplayAlert("Error", "Failed to delete task. Please try again.", "OK");
+            }
         }
     }
 
-    // This moves the task back to the Main page when unchecked!
+    // Unchecking the box = mark as active again via API
     private async void OnTaskCheckedChanged(object sender, CheckedChangedEventArgs e)
     {
         if (sender is CheckBox cb && cb.BindingContext is ToDoClass task)
         {
-            // We only check if the box is UNCHECKED (e.Value is false)
             if (!e.Value)
             {
-                task.status = "Pending"; // Ensure database gets the right string
-                await _dbHelper.SaveToDo(task); // Save to database
-                CompletedToDos.Remove(task); // Remove it from this tab
+                bool success = await _api.ChangeStatusAsync(task.item_id, "active");
+
+                if (success)
+                {
+                    CompletedToDos.Remove(task);
+                }
+                else
+                {
+                    // Revert visually
+                    task.status = "inactive";
+                    await DisplayAlert("Error", "Failed to update task status.", "OK");
+                }
             }
         }
     }
